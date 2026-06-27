@@ -2,7 +2,7 @@ trigger:
 - main
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'azrhrfvm '
 
 # Stage-1: Terraform Validate Stage
 ## Step-1: Publish Artifacts to Pipeline (Pipeline artifacts provide a way to share files between stages in a pipeline or between different pipelines. )
@@ -18,7 +18,7 @@ stages:
       - task: PublishPipelineArtifact@1
         displayName: Publish Artifacts
         inputs:
-          targetPath: '$(System.DefaultWorkingDirectory)/terraform-manifests'
+          targetPath: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
           artifact: 'terraform-manifests-out'
           publishLocation: 'pipeline'
       - task: TerraformInstaller@0
@@ -29,11 +29,11 @@ stages:
         displayName: Terraform Init
         inputs:
           command: 'init'
-          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-manifests'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
           backendType: 'azurerm'
           backendServiceArm: 'terraform-aks-azurerm-svc-con'
-          backendAzureRmResourceGroupName: 'terraform-storage-rg'
-          backendAzureRmStorageAccountName: 'terraformstatexlrwdrzs'
+          backendAzureRmResourceGroupName: 'azr-hrf'
+          backendAzureRmStorageAccountName: 'azrhrfvm'
           backendAzureRmContainerName: 'tfstatefiles'
           backendAzureRmKey: 'aks-base.tfstate'
           allowTelemetryCollection: false
@@ -41,5 +41,5 @@ stages:
         displayName: Terraform Validate
         inputs:
           command: 'validate'
-          workingDirectory: '$(System.DefaultWorkingDirectory)/terraform-manifests'
+          workingDirectory: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
           allowTelemetryCollection: false       
