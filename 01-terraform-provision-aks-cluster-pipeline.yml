@@ -2,9 +2,7 @@ trigger:
 - main
 
 pool:
-  name: 'azrhrfvm'   # This is your self-hosted agent pool name
-  demands:
-  - Agent.OS -equals Linux   # Ensures it runs on your Linux VM agent
+  name: 'azrhrfvm'   # self-hosted agent pool name
 
 stages:
 - stage: TerraformValidate
@@ -19,28 +17,22 @@ stages:
           artifact: 'terraform-manifests-out'
           publishLocation: 'pipeline'
 
-      # Optional: If Terraform is already installed on your self-hosted VM, you can remove this step
-      - task: TerraformInstaller@0
-        displayName: Terraform Install
-        inputs:
-          terraformVersion: 'latest'
+      - script: |
+          curl -LO https://releases.hashicorp.com/terraform/1.9.0/terraform_1.9.0_linux_amd64.zip
+          unzip terraform_1.9.0_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version
+        displayName: "Install Terraform"
 
-      - task: TerraformCLI@0
-        displayName: Terraform Init
-        inputs:
-          command: 'init'
-          workingDirectory: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
-          backendType: 'azurerm'
-          backendServiceArm: 'terraform-aks-azurerm-svc-con'
-          backendAzureRmResourceGroupName: 'azr-hrf'
-          backendAzureRmStorageAccountName: 'azrhrfvm'
-          backendAzureRmContainerName: 'tfstatefiles'
-          backendAzureRmKey: 'aks-base.tfstate'
-          allowTelemetryCollection: false
+      - script: |
+          terraform init \
+            -backend-config="resource_group_name=azr-hrf" \
+            -backend-config="storage_account_name=azrhrfvm" \
+            -backend-config="container_name=tfstatefiles" \
+            -backend-config="key=aks-base.tfstate"
+        workingDirectory: $(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests
+        displayName: "Terraform Init"
 
-      - task: TerraformCLI@0
-        displayName: Terraform Validate
-        inputs:
-          command: 'validate'
-          workingDirectory: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
-          allowTelemetryCollection: false
+      - script: terraform validate
+        workingDirectory: $(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests
+        displayName: "Terraform Validate"
