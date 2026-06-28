@@ -79,7 +79,7 @@ stages:
     - deployment: DeployDevAKSCluster
       displayName: DeployDevAKSCluster
       pool:
-        vmImage: 'ubuntu-latest'
+        name: 'azrhrfvm'
       environment: $(DEV_ENVIRONMENT)
       strategy:
         runOnce:
@@ -89,35 +89,26 @@ stages:
               displayName: Download SSH Key
               name: sshkey
               inputs:
-                secureFile: 'aks-terraform-devops-ssh-key-ububtu.pub'
+                secureFile: 'aks-terraform-devops-ssh-key-ubuntu.pub'
 
-            - task: TerraformCLI@0
-              displayName: Terraform Init (Dev)
-              inputs:
-                command: 'init'
-                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
-                backendType: 'azurerm'
-                backendServiceArm: 'terraform-aks-azurerm-svc-con'
-                backendAzureRmResourceGroupName: 'terraform-storage-rg'
-                backendAzureRmStorageAccountName: 'terraformstatexlrwdrzs'
-                backendAzureRmContainerName: 'tfstatefiles'
-                backendAzureRmKey: 'aks-$(DEV_ENVIRONMENT).tfstate'
-                allowTelemetryCollection: false
+            - script: |
+                terraform init \
+                  -backend-config="resource_group_name=terraform-storage-rg" \
+                  -backend-config="storage_account_name=terraformstatexlrwdrzs" \
+                  -backend-config="container_name=tfstatefiles" \
+                  -backend-config="key=aks-$(DEV_ENVIRONMENT).tfstate"
+              workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+              displayName: "Terraform Init (Dev)"
 
-            - task: TerraformCLI@0
-              displayName: Terraform Plan (Dev)
-              inputs:
-                command: 'plan'
-                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
-                environmentServiceName: 'terraform-aks-azurerm-svc-con'
-                commandOptions: '-var ssh_public_key=$(sshkey.secureFilePath) -var environment=$(DEV_ENVIRONMENT) -out $(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out'
-                allowTelemetryCollection: false
+            - script: |
+                terraform plan \
+                  -var ssh_public_key=$(sshkey.secureFilePath) \
+                  -var environment=$(DEV_ENVIRONMENT) \
+                  -out $(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out
+              workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+              displayName: "Terraform Plan (Dev)"
 
-            - task: TerraformCLI@0
-              displayName: Terraform Apply (Dev)
-              inputs:
-                command: 'apply'
-                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
-                environmentServiceName: 'terraform-aks-azurerm-svc-con'
-                commandOptions: '$(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out'
-                allowTelemetryCollection: false
+            - script: |
+                terraform apply $(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out
+              workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+              displayName: "Terraform Apply (Dev)"
