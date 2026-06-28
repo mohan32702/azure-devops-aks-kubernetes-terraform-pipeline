@@ -1,0 +1,123 @@
+trigger:
+- main
+
+pool:
+  name: 'azrhrfvm'   # self-hosted agent pool name
+
+variables:
+  ARM_CLIENT_ID: "7a244bf1-d526-49ef-be74-5b360fcd8d44"        # Application (client) ID
+  ARM_TENANT_ID: "5ab7783d-96bd-479c-8fd4-8f03bdea5377"        # Directory (tenant) ID
+  ARM_SUBSCRIPTION_ID: "a14d4110-7229-42d4-a628-c6901d09917a"  # Subscription ID
+  ARM_CLIENT_SECRET: "$(spn-secret)"                          # Secret defined in pipeline UI, marked secret
+  DEV_ENVIRONMENT: "dev"
+  QA_ENVIRONMENT: "qa"
+
+stages:
+# Stage-1: Validate Terraform
+- stage: TerraformValidate
+  jobs:
+    - job: TerraformValidateJob
+      continueOnError: false
+      steps:
+      - task: PublishPipelineArtifact@1
+        displayName: Publish Artifacts
+        inputs:
+          targetPath: '$(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests'
+          artifact: 'terraform-manifests-out'
+          publishLocation: 'pipeline'
+
+      - script: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget curl apt-transport-https lsb-release gnupg
+          curl -LO https://releases.hashicorp.com/terraform/1.9.0/terraform_1.9.0_linux_amd64.zip
+          unzip terraform_1.9.0_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+          terraform -version
+        displayName: "Install Terraform"
+
+      - script: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az version
+        displayName: "Install Azure CLI"
+
+      - script: |
+          echo "ARM_CLIENT_ID=${ARM_CLIENT_ID}"
+          echo "ARM_TENANT_ID=${ARM_TENANT_ID}"
+          echo "ARM_SUBSCRIPTION_ID=${ARM_SUBSCRIPTION_ID}"
+          echo "ARM_CLIENT_SECRET is set: ${ARM_CLIENT_SECRET:+yes}"
+        displayName: "Debug ARM Variables"
+
+      - script: |
+          az login --service-principal \
+            -u ${ARM_CLIENT_ID} \
+            -p "${ARM_CLIENT_SECRET}" \
+            --tenant ${ARM_TENANT_ID}
+          az account show
+        displayName: "Test SPN Login"
+
+      - script: |
+          export ARM_CLIENT_ID="${ARM_CLIENT_ID}"
+          export ARM_CLIENT_SECRET="${ARM_CLIENT_SECRET}"
+          export ARM_TENANT_ID="${ARM_TENANT_ID}"
+          export ARM_SUBSCRIPTION_ID="${ARM_SUBSCRIPTION_ID}"
+
+          terraform init -upgrade=false \
+            -backend-config="resource_group_name=azr-hrf" \
+            -backend-config="storage_account_name=azrhrfvm" \
+            -backend-config="container_name=tfstatefiles" \
+            -backend-config="key=aks-base.tfstate"
+        workingDirectory: $(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests
+        displayName: "Terraform Init"
+
+      - script: terraform validate
+        workingDirectory: $(System.DefaultWorkingDirectory)/Git-Repo-Files/terraform-manifests
+        displayName: "Terraform Validate"
+
+# Stage-2: Deploy Dev AKS Cluster
+- stage: DeployAKSClusters
+  jobs:
+    - deployment: DeployDevAKSCluster
+      displayName: DeployDevAKSCluster
+      pool:
+        vmImage: 'ubuntu-latest'
+      environment: $(DEV_ENVIRONMENT)
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - task: DownloadSecureFile@1
+              displayName: Download SSH Key
+              name: sshkey
+              inputs:
+                secureFile: 'aks-terraform-devops-ssh-key-ububtu.pub'
+
+            - task: TerraformCLI@0
+              displayName: Terraform Init (Dev)
+              inputs:
+                command: 'init'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                backendType: 'azurerm'
+                backendServiceArm: 'terraform-aks-azurerm-svc-con'
+                backendAzureRmResourceGroupName: 'terraform-storage-rg'
+                backendAzureRmStorageAccountName: 'terraformstatexlrwdrzs'
+                backendAzureRmContainerName: 'tfstatefiles'
+                backendAzureRmKey: 'aks-$(DEV_ENVIRONMENT).tfstate'
+                allowTelemetryCollection: false
+
+            - task: TerraformCLI@0
+              displayName: Terraform Plan (Dev)
+              inputs:
+                command: 'plan'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                environmentServiceName: 'terraform-aks-azurerm-svc-con'
+                commandOptions: '-var ssh_public_key=$(sshkey.secureFilePath) -var environment=$(DEV_ENVIRONMENT) -out $(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out'
+                allowTelemetryCollection: false
+
+            - task: TerraformCLI@0
+              displayName: Terraform Apply (Dev)
+              inputs:
+                command: 'apply'
+                workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
+                environmentServiceName: 'terraform-aks-azurerm-svc-con'
+                commandOptions: '$(Pipeline.Workspace)/terraform-manifests-out/$(DEV_ENVIRONMENT)-$(Build.BuildId).out'
+                allowTelemetryCollection: false
