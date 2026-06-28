@@ -31,6 +31,17 @@ stages:
           az version
         displayName: "Install Azure CLI"
 
+      # Use service connection for authentication
+      - task: AzureCLI@2
+        displayName: "Azure Login via Service Connection"
+        inputs:
+          azureSubscription: "terraform-aks-azurerm-svc-con"   # <-- your service connection name
+          scriptType: bash
+          scriptLocation: inlineScript
+          inlineScript: |
+            echo "Logged in with service connection"
+            az account show
+
       - script: |
           terraform init \
             -backend-config="resource_group_name=azr-hrf" \
