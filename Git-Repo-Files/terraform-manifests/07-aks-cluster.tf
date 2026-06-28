@@ -36,10 +36,7 @@ resource "azurerm_kubernetes_cluster" "aks_cluster" {
 # Identity (System Assigned or Service Principal)
   identity { type = "SystemAssigned" }
 
-# Added June 2023
-oms_agent {
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.insights.id
-}
+#
 # Add On Profiles
 #  addon_profile {
 #    azure_policy { enabled = true }
