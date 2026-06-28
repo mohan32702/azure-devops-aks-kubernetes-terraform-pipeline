@@ -1,5 +1,5 @@
 trigger:
-- main
+- master
 
 pool:
   name: 'azrhrfvm'   # self-hosted agent pool name
@@ -93,8 +93,8 @@ stages:
 
             - script: |
                 terraform init \
-                  -backend-config="resource_group_name=terraform-storage-rg" \
-                  -backend-config="storage_account_name=terraformstatexlrwdrzs" \
+                  -backend-config="resource_group_name=azr-hrf" \
+                  -backend-config="storage_account_name=azrhrfvm" \
                   -backend-config="container_name=tfstatefiles" \
                   -backend-config="key=aks-$(DEV_ENVIRONMENT).tfstate"
               workingDirectory: '$(Pipeline.Workspace)/terraform-manifests-out'
