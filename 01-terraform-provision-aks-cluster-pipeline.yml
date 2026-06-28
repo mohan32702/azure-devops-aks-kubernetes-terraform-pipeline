@@ -4,6 +4,12 @@ trigger:
 pool:
   name: 'azrhrfvm'   # self-hosted agent pool name
 
+variables:
+  ARM_CLIENT_ID: "7a244bf1-d526-49ef-be74-5b360fcd8d44"        # Application (client) ID
+  ARM_TENANT_ID: "5ab7783d-96bd-479c-8fd4-8f03bdea5377"        # Directory (tenant) ID
+  ARM_SUBSCRIPTION_ID: "a14d4110-7229-42d4-a628-c6901d09917a"  # Subscription ID
+  ARM_CLIENT_SECRET: "$(spn-secret)"                          # Store securely in Library as secret
+
 stages:
 - stage: TerraformValidate
   jobs:
@@ -30,20 +36,6 @@ stages:
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
           az version
         displayName: "Install Azure CLI"
-
-      # Use service connection for authentication and export ARM_* variables
-      - task: AzureCLI@2
-        displayName: "Azure Login via Service Connection"
-        inputs:
-          azureSubscription: "terraform-aks-azurerm-svc-con"   # <-- your service connection name
-          scriptType: bash
-          scriptLocation: inlineScript
-          inlineScript: |
-            echo "Exporting ARM_* variables for Terraform"
-            echo "##vso[task.setvariable variable=ARM_CLIENT_ID]$servicePrincipalId"
-            echo "##vso[task.setvariable variable=ARM_CLIENT_SECRET]$servicePrincipalKey"
-            echo "##vso[task.setvariable variable=ARM_TENANT_ID]$tenantId"
-            echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]$subscriptionId"
 
       - script: |
           echo "ARM_CLIENT_ID=${ARM_CLIENT_ID}"
